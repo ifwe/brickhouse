@@ -8,10 +8,11 @@ import java.util.Map.Entry;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
-import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
@@ -41,6 +42,8 @@ public class HTableFactory {
 	  static  String ZOOKEEPER_QUORUM_TAG = "hbase.zookeeper.quorum";
 	  static  String AUTOFLUSH_TAG = "hbase.client.autoflush";
       static  String OVERWRITE_CELL_TAG = "brickhouse.overwrite.cell";
+      static  String WRITE_BUFFER_SIZE_TAG = "hbase.client.write_buffer_size_mb";
+      static String WAL_TAG = "hbas.client.wal";
 
 	  private static Map<String, HTable> htableMap = new HashMap<String,HTable>();
 	  private static Configuration hbConfig;
@@ -63,13 +66,27 @@ public class HTableFactory {
 			  
 			  if(configMap.containsKey(AUTOFLUSH_TAG)) {
 				  Boolean flushFlag = Boolean.valueOf( configMap.get(AUTOFLUSH_TAG));
-				  table.setAutoFlush(flushFlag);
+				  table.setAutoFlushTo(flushFlag);
+			  }
+			  if (configMap.containsKey(WRITE_BUFFER_SIZE_TAG)) {
+				  long writeBufferSizeBytes = Long.parseLong(configMap.get(WRITE_BUFFER_SIZE_TAG)) * 1024 * 1024;
+				  table.setWriteBufferSize(writeBufferSizeBytes);
 			  }
 			 
 			  htableMap.put(tableName, table);
 		  }
-
 		  return table;
+	  }
+	  
+	  public static Put getPut(byte[] key, Map<String,String> configMap) {
+		  Put p = new Put(key);
+		  if(configMap.containsKey(WAL_TAG)) {
+			  Boolean walTag = Boolean.valueOf(configMap.get(WAL_TAG));
+			  if (!walTag) {
+				  p.setDurability(Durability.SKIP_WAL);
+			  }
+		  }
+		  return p;
 	  }
 	  
 	  public static Map<String,String> getConfigFromConstMapInspector(ObjectInspector objInspector) throws UDFArgumentException {
